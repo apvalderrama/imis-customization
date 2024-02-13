@@ -1,0 +1,62 @@
+document.addEventListener("DOMContentLoaded", (event) => {
+    const verificationToken = document.getElementById("__RequestVerificationToken").value;
+    const hostLoc = window.location.host;   
+    const windowLoc = new URL(window.location.href);
+    const params = new URLSearchParams(windowLoc.search);
+    const contactKey = params.get("ContactKey");
+
+    function getIqaResults(contactKey, queryName, resultDescriptor) {
+        let url = `https://${hostLoc}/api/iqa?QueryName=${queryName}&parameter=eq:${contactKey}`;
+
+        return fetch(url, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'RequestVerificationToken': verificationToken
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data && data.Count > 0) {
+                console.log(`${resultDescriptor}: ${data.Count}`);
+                return { descriptor: resultDescriptor, count: data.Count };
+            } else {
+                return null;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            return { descriptor: resultDescriptor, error: error };
+        });
+    }
+
+    const queryNames = [
+        "$/FPAA/Flamesol/Flamesol%20-%20OBTSTD%20-%20COMP",
+        "$/FPAA/Flamesol/Flamesol%20-%20OBTSTD%20-%20BRAN",
+        "$/FPAA/Flamesol/Flamesol%20-%20OBTSTD%20-%20USER",
+        "$/FPAA/Flamesol/Flamesol%20-%20OBTSTR%20-%20COMP",
+        "$/FPAA/Flamesol/Flamesol%20-%20OBTSTR%20-%20BRAN",
+        "$/FPAA/Flamesol/Flamesol%20-%20OBTSTR%20-%20USER"
+    ];
+    const descriptors = ["standardComp", "standardBran", "standardUser", "starterComp", "starterBran", "starterUser"];
+
+    const fetchPromises = queryNames.map((queryName, index) => {
+        return getIqaResults(contactKey, queryName, descriptors[index]);
+    });
+
+    Promise.all(fetchPromises)
+        .then(results => {
+            const validResult = results.find(result => result !== null);
+            if (validResult) {
+                console.log(`Data from ${validResult.descriptor}:`, validResult.count);
+                document.querySelector('.noPack').style.display = 'none';
+                document.querySelector(`.${validResult.descriptor}`).style.display = 'block';
+            } else {
+                console.log('No valid results found.');
+            }
+        })
+        .catch(error => {
+            console.error('Error with Promise.all:', error);
+        });
+});
