@@ -1,0 +1,32 @@
+<script>
+    const verificationToken = document.getElementById("__RequestVerificationToken").value;
+    const hostLoc = window.location.host;   
+    const url = new URL(window.location.href);
+    const params = new URLSearchParams(url.search);
+    const contactKey = params.get("ContactKey");
+
+    // Plug the IQA 
+    // QueryName = Path of the IQA
+    // parameter = the filter use
+    function getIqaResults(id) {
+        let url = 'https://' + hostLoc + '/api/iqa?QueryName=${QueryPath}&parameter=eq:' + id;
+        if (id) { console.log('Fetching data from: ' + url); }
+
+        fetch(url, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'RequestVerificationToken': verificationToken
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log(data);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+    }
+    getIqaResults(contactKey);
+</script>
