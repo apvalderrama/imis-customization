@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="utf-8" />
+    <title>Get Cart</title>
+    <style>
+        #cartDetailsTable, #cartDetailsTable th, #cartDetailsTable td {
+            border: 1px solid black;
+        }
+        #cartDetailsTable th, #cartDetailsTable td {
+            padding: 10px;
+        }
+        #clearCartBttn {
+            width: 120px;
+            background-color: #dc4940;
+            text-align: center;
+            font-size: 14px;
+            color: white;
+            font-weight: 600;
+            border-width: 2px;
+            border-radius: 25px;
+            padding: 5px 10px;
+            margin: 12px;
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+    </style>
+</head>
+<body>
+    <section id="cartContents">
+    </section>
+
+
+    <script>
+
+        let globalCartId;
+        let cartCreatedById;
+        let cartCreatorName;
+
+        // get contact ID
+        function getContactId() {
+            let currentUrl = new URL(window.location.href);
+            let id = currentUrl.searchParams.get('ID');
+            return id;
+        }
+
+        // get cart details
+        async function getCartDetails(contactId) {
+            let requestVerificationToken = document.getElementById("__RequestVerificationToken")?.value;
+
+            try {
+                let response = await fetch(`https://apdemoaisp13.imiscloud.com/api/cart?UserID=${contactId}`, {
+                    method: "GET",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "RequestVerificationToken": requestVerificationToken
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                let data = await response.json();
+
+                if (data.Items && data.Items.$values && data.Items.$values[0]) {
+                    displayCartDetails(data);
+                    let cartId = data.Items.$values[0].CartId;
+                    globalCartId = cartId;
+                } else {
+                    console.log('No cart data found');
+                    displayCartDetails(null);
+                }
+            } catch (error) {
+                console.error('There has been a problem with your fetch operation:', error);
+            }
+        }
+
+
+        async function displayCartDetails(data) {
+            let cartContents = document.getElementById("cartContents");
+            if (!data) {
+                cartContents.textContent = "No items were found in the cart.";
+                return;
+            }
+
+            let lineItems = data.Items.$values[0].ComboOrder.Order.Lines.$values;
+            let cartCreatedById = data.Items.$values[0].UpdateInformation.CreatedBy;
+
+            let requestVerificationToken = document.getElementById("__RequestVerificationToken")?.value;
+
+            const creatorResponse = await fetch(`https://apdemoaisp13.imiscloud.com/api/party/${cartCreatedById}`, {
+                method: 'GET',
+                headers: {
+                    'RequestVerificationToken': requestVerificationToken
+                }
+            });
+
+            if (!creatorResponse.ok) {
+                throw new Error('Network response was not ok');
+            }
+
+            let creatorData = await creatorResponse.json();
+            let cartCreatorName = creatorData.PersonName.FullName;
+
+            if (lineItems.length === 0) {
+                cartContents.innerHTML = "No items found on the cart";
+            } else {
+                let cartDetails = `
+            <div>
+                <p>Cart Created By: <strong id="cartCreator"></strong></p>
+                <p>Cart Created On: <strong id="createdOnDate"></strong></p>
+                <p>Cart Updated On: <strong id="updatedOnDate"></strong></p>
+            </div>
+            <h4>Cart Contents:</h4>
+            <table id="cartDetailsTable">
+                <tr>
+                    <th>Item</th>
+                    <th>Price</th>
+                </tr>
+            </table>
+            <div>
+                <button id="clearCartBttn">Clear Cart</button>
+            </div>
+        `;
+
+                cartContents.innerHTML = cartDetails;
+
+                let table = document.getElementById("cartDetailsTable");
+
+                for (let item of lineItems) {
+                    let itemName = item.Item.Name;
+                    let itemPrice = item.UnitPrice.Amount;
+
+                    let row = table.insertRow(-1);
+                    let cell1 = row.insertCell(0);
+                    let cell2 = row.insertCell(1);
+
+                    cell1.textContent = itemName;
+                    cell2.textContent = `AUD ${itemPrice.toFixed(2)}`;
+                }
+
+                let createdOn = new Date(data.Items.$values[0].UpdateInformation.CreatedOn);
+
+                let createdOnOptions = {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    timeZone: 'Australia/Sydney'
+                };
+                let formattedCreatedOn = createdOn.toLocaleString('en-AU', createdOnOptions);
+
+                let updatedOn = new Date(data.Items.$values[0].UpdateInformation.UpdatedOn);
+
+                let updatedOnOptions = {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    timeZone: 'Australia/Sydney'
+                };
+                let formattedUpdatedOn = updatedOn.toLocaleString('en-AU', updatedOnOptions);
+
+                document.getElementById("createdOnDate").textContent = formattedCreatedOn;
+                document.getElementById("updatedOnDate").textContent = formattedUpdatedOn;
+                document.getElementById("cartCreator").textContent = cartCreatorName;
+
+                document.getElementById("clearCartBttn").addEventListener("click", clearCart);
+            }
+        }
+
+
+        function clearCart() {
+            if (!globalCartId) {
+                console.error('Cart ID is undefined. Cannot clear the cart.');
+                return;
+            }
+
+            var verificationToken = document.getElementById("__RequestVerificationToken")?.value;
+
+            var result = confirm("Are you sure you want to clear the cart?");
+            if (result) {
+                fetch('https://apdemoaisp13.imiscloud.com/api/cart/' + globalCartId, {
+                    method: 'DELETE',
+                    headers: {
+                        'RequestVerificationToken': verificationToken
+                    }
+                })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        location.reload();
+                    })
+                    .catch(error => {
+                        console.error('There has been a problem with your fetch operation:', error);
+                    });
+            }
+        }
+
+        getCartDetails(getContactId());
+
+    </script>
+</body>
+</html>
